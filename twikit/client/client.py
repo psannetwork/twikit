@@ -290,6 +290,8 @@ class Client:
         password: str,
         totp_secret: str | None = None,
         cookies_file: str | None = None,
+        auth_code_callback: callable | None = None # 同期/非同期関数を受け取る
+
         enable_ui_metrics: bool = True
     ) -> dict:
         """
@@ -449,27 +451,51 @@ class Client:
 
         if flow.task_id == 'LoginAcid':
             print(find_dict(flow.response, 'secondary_text', find_one=True)[0]['text'])
-
+            # --- 修正箇所 ---
+            auth_code = None
+            if auth_code_callback:
+                # コールバックがコルーチン関数 (async def) かどうかを確認
+                if inspect.iscoroutinefunction(auth_code_callback):
+                    auth_code = await auth_code_callback()
+                else:
+                    auth_code = auth_code_callback()
+        
+            # コールバックが None を返した場合や、コールバックが提供されていない場合は input() を使用
+            if auth_code is None:
+                 auth_code = input('>>> ')
+        
             await flow.execute_task({
                 'subtask_id': 'LoginAcid',
                 'enter_text': {
-                    'text': input('>>> '),
+                    'text': auth_code, # input() から auth_code 変数に変更
                     'link': 'next_link'
                 }
             })
-            return flow.response
 
         if flow.task_id == 'LoginTwoFactorAuthChallenge':
-            if totp_secret is None:
-                print(find_dict(flow.response, 'secondary_text', find_one=True)[0]['text'])
-                totp_code = input('>>>')
-            else:
+            # totp_secret が提供されている場合、pyotp を使用 (優先順位高)
+            if totp_secret is not None:
                 totp_code = pyotp.TOTP(totp_secret).now()
-
+            else:
+                # --- 修正箇所 ---
+                totp_code = None
+                if auth_code_callback:
+                    # コールバックがコルーチン関数 (async def) かどうかを確認
+                    if inspect.iscoroutinefunction(auth_code_callback):
+                        totp_code = await auth_code_callback()
+                    else:
+                        totp_code = auth_code_callback()
+        
+                # コールバックが None を返した場合や、コールバックが提供されていない場合は input() を使用
+                if totp_code is None:
+                    print(find_dict(flow.response, 'secondary_text', find_one=True)[0]['text'])
+                    totp_code = input('>>>')
+                # --- 修正終了 ---
+        
             await flow.execute_task({
                 'subtask_id': 'LoginTwoFactorAuthChallenge',
                 'enter_text': {
-                    'text': totp_code,
+                    'text': totp_code, # 変数名を totp_code に統一 (input() から変数に変更)
                     'link': 'next_link'
                 }
             })
