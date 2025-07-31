@@ -290,7 +290,7 @@ class Client:
         password: str,
         totp_secret: str | None = None,
         cookies_file: str | None = None,
-        auth_code_callback: callable | None = None # 同期/非同期関数を受け取る
+        auth_code_callback: callable | None = None, # 同期/非同期関数を受け取る
 
         enable_ui_metrics: bool = True
     ) -> dict:
